@@ -15,7 +15,6 @@ namespace DynamicBlockToYamlExporter
     {
         private static int _countBlocks = 0;
         private static List<string> _typeScheme = new List<string>();
-        private static string _userChoice = "";
         private static bool _debugMode = false;
 
         [CommandMethod("ExportDynamicBlockToYaml")]
@@ -28,8 +27,13 @@ namespace DynamicBlockToYamlExporter
 
             try
             {
-                // Инициализация
-                InitTypeScheme(ed);
+                // Инициализация для текущего документа
+                if (!InitTypeSchemeForDocument(doc, ed))
+                {
+                    ed.WriteMessage("\nОперация отменена пользователем.");
+                    return;
+                }
+
                 InitCounterBlocks();
 
                 // Экспорт
@@ -58,9 +62,12 @@ namespace DynamicBlockToYamlExporter
             }
         }
 
-        private static void InitTypeScheme(Editor ed)
+        private static bool InitTypeSchemeForDocument(Document doc, Editor ed)
         {
-            if (string.IsNullOrEmpty(_userChoice))
+            // Получаем сохранённый выбор для текущего документа
+            string userChoice = GetUserChoiceForDocument(doc);
+
+            if (string.IsNullOrEmpty(userChoice))
             {
                 var choices = new List<string> { "Схема", "ЗЗИ", "Трасса", "ВсеБлоки" };
                 PromptKeywordOptions pko = new PromptKeywordOptions("\nВыберите тип данных для инициализации [Схема/ЗЗИ/Трасса/ВсеБлоки]: ");
@@ -74,15 +81,16 @@ namespace DynamicBlockToYamlExporter
                 PromptResult pr = ed.GetKeywords(pko);
                 if (pr.Status == PromptStatus.OK)
                 {
-                    _userChoice = pr.StringResult;
+                    userChoice = pr.StringResult;
+                    SaveUserChoiceForDocument(doc, userChoice);
                 }
                 else
                 {
-                    _userChoice = "ВсеБлоки";
+                    return false; // Пользователь отменил
                 }
             }
 
-            switch (_userChoice)
+            switch (userChoice)
             {
                 case "Схема":
                     InitListSchemeBlocks();
@@ -98,7 +106,23 @@ namespace DynamicBlockToYamlExporter
                     break;
             }
 
-            ed.WriteMessage($"\nИнициализировано типов блоков: {_typeScheme.Count}");
+            ed.WriteMessage($"\nИнициализировано типов блоков: {_typeScheme.Count} (тип: {userChoice})");
+            return true;
+        }
+
+        private static string GetUserChoiceForDocument(Document doc)
+        {
+            // Используем UserData документа для хранения выбора
+            if (doc.UserData.ContainsKey("DynamicBlockExport_UserChoice"))
+            {
+                return doc.UserData["DynamicBlockExport_UserChoice"] as string;
+            }
+            return null;
+        }
+
+        private static void SaveUserChoiceForDocument(Document doc, string choice)
+        {
+            doc.UserData["DynamicBlockExport_UserChoice"] = choice;
         }
 
         private static void InitListSchemeBlocks()
@@ -160,7 +184,7 @@ namespace DynamicBlockToYamlExporter
                         File.Delete(yamlPath);
                     }
 
-                    using (StreamWriter writer = new StreamWriter(yamlPath, false, Encoding.UTF8))
+                    using (StreamWriter writer = new StreamWriter(yamlPath, false, Encoding.GetEncoding("windows-1251")))
                     {
                         writer.WriteLine("# Экспорт динамических блоков");
                         writer.WriteLine($"# Файл: {Path.GetFileName(doc.Name)}");
@@ -176,11 +200,10 @@ namespace DynamicBlockToYamlExporter
                             BlockReference br = tr.GetObject(id, OpenMode.ForRead) as BlockReference;
                             if (br != null && IsMyBlock(br, tr))
                             {
-                                //ed.WriteMessage($"\n{processed}/{total} Обработка динамического блока: {GetBlockRealName(br, tr)}");
                                 ExportBlock(br, writer, tr);
                                 _countBlocks++;
                             }
-                            else if (br != null)
+                            else if (br != null && _debugMode)
                             {
                                 ed.WriteMessage($"\nПропускаем блок: {GetBlockName(br)}/{GetBlockRealName(br, tr)}");
                             }
