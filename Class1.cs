@@ -17,6 +17,21 @@ namespace DynamicBlockToYamlExporter
         private static List<string> _typeScheme = new List<string>();
         private static bool _debugMode = false;
 
+        private static string GetOriginalDrawingPath(Database db, Document doc)
+        {
+            // Пробуем получить оригинальный путь через Document
+            string originalPath = doc.Name;
+
+            if (!string.IsNullOrEmpty(originalPath) && !originalPath.StartsWith("*"))
+            {
+                // doc.Name возвращает полный путь к исходному файлу
+                return originalPath;
+            }
+
+            // Если документ не сохранён, используем имя чертежа с запросом у пользователя
+            return null;
+        }
+
         [CommandMethod("ExportDynamicBlockToYaml")]
         public static void ExportDynamicBlockToYaml()
         {
@@ -35,9 +50,22 @@ namespace DynamicBlockToYamlExporter
                 }
 
                 InitCounterBlocks();
+                
+                // Получаем правильный путь к файлу
+                string dwgPath = GetOriginalDrawingPath(db, doc);
+                if (string.IsNullOrEmpty(dwgPath))
+                {
+                    // Если чертёж не сохранён, предлагаем сохранить или указать путь
+                    PromptSaveDrawing(ed);
+                    dwgPath = GetOriginalDrawingPath(db, doc);
+                    if (string.IsNullOrEmpty(dwgPath))
+                    {
+                        ed.WriteMessage("\nЧертёж не сохранён. Пожалуйста, сохраните чертёж перед экспортом.");
+                        return;
+                    }
+                }
 
                 // Экспорт
-                string dwgPath = db.Filename;
                 string dwgName = Path.GetFileNameWithoutExtension(dwgPath);
                 string dwgPrefix = Path.GetDirectoryName(dwgPath);
                 string filePath = Path.Combine(dwgPrefix, dwgName + ".yaml");
@@ -59,6 +87,22 @@ namespace DynamicBlockToYamlExporter
             catch (System.Exception ex)
             {
                 ed.WriteMessage($"\nОшибка: {ex.Message}");
+            }
+        }
+
+        private static void PromptSaveDrawing(Editor ed)
+        {
+            PromptKeywordOptions pko = new PromptKeywordOptions("\nЧертёж не сохранён. Сохранить перед экспортом? [Да/Нет]: ");
+            pko.Keywords.Add("Да");
+            pko.Keywords.Add("Нет");
+            pko.Keywords.Default = "Да";
+            pko.AllowNone = false;
+
+            PromptResult pr = ed.GetKeywords(pko);
+            if (pr.Status == PromptStatus.OK && pr.StringResult == "Да")
+            {
+                // Отправляем команду сохранения
+                Application.DocumentManager.MdiActiveDocument.SendStringToExecute("_qsave ", true, false, false);
             }
         }
 
