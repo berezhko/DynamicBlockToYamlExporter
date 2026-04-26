@@ -32,8 +32,8 @@ namespace DynamicBlockToYamlExporter
             return null;
         }
 
-        [CommandMethod("ExportDynamicBlockToYaml")]
-        public static void ExportDynamicBlockToYaml()
+        [CommandMethod("ExportBlockToYaml")]
+        public static void ExportBlockToYaml()
         {
             Document doc = Application.DocumentManager.MdiActiveDocument;
             Editor ed = doc.Editor;
