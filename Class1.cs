@@ -322,7 +322,20 @@ namespace DynamicBlockToYamlExporter
                     AttributeReference att = tr.GetObject(attId, OpenMode.ForRead) as AttributeReference;
                     if (att != null)
                     {
-                        writer.WriteLine($"    {att.Tag}: '{EscapeYamlString(att.TextString)}'");
+                        string value;
+
+                        if (att.IsMTextAttribute && att.MTextAttribute != null)
+                        {
+                            // Получаем MText-объект
+                            MText mt = att.MTextAttribute;
+                            value = mt.Contents;
+                        }
+                        else
+                        {
+                            value = att.TextString;
+                        }
+
+                        writer.WriteLine($"    {att.Tag}: '{EscapeYamlString(value)}'");
                     }
                 }
             }
@@ -389,7 +402,7 @@ namespace DynamicBlockToYamlExporter
         {
             if (string.IsNullOrEmpty(input)) return "";
             // Экранируем спецсимволы YAML
-            return input.Replace("\\", "\\\\").Replace("'", "''");
+            return input.Replace("'", "\"");
         }
     }
 }
